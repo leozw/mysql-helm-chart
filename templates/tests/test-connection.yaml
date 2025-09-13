@@ -8,8 +8,17 @@ metadata:
     "helm.sh/hook": test
 spec:
   containers:
-    - name: wget
-      image: busybox
-      command: ['wget']
-      args: ['{{ include "tpl.fullname" . }}:{{ .Values.service }}']
+    - name: mysql-test
+      image: mysql:8.0.40
+      env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.secretName | default (printf "%s-secret" .Release.Name) | quote }}
+              key: MYSQL_ROOT_PASSWORD
+      command:
+        - sh
+        - -c
+        - |
+          mysql -h {{ .Release.Name }}-service -u root -p$MYSQL_ROOT_PASSWORD -e "SELECT VERSION();"
   restartPolicy: Never
