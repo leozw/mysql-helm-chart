@@ -1,0 +1,350 @@
+# Default values for mysql chart
+# This is a YAML-formatted file.
+
+# Number of replicas
+replicaCount: 1
+
+# Use StatefulSet instead of Deployment for stateful applications like databases
+statefulset: true
+
+# MySQL specific configuration
+mysql:
+  enabled: true
+  datadir: "/var/lib/mysql"
+  rootPasswordKey: "MYSQL_ROOT_PASSWORD"
+  userKey: "MYSQL_USER"
+  passwordKey: "MYSQL_PASSWORD"
+  databaseKey: "MYSQL_DATABASE"
+
+# Persistence configuration - only applies to StatefulSet
+persistence: 
+  enabled: true
+  volumeClaimTemplates:
+    - name: mysql-storage
+      accessModes: [ "ReadWriteOnce" ]
+      # storageClassName: "fast-ssd"  # Uncomment to specify storage class
+      resources:
+        requests:
+          storage: 10Gi
+
+# Update strategy for StatefulSet
+UpdateStrategy:
+  type: RollingUpdate
+
+# Rolling update strategy for Deployment
+Strategy: 
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+  type: RollingUpdate
+
+# Container image configuration
+image:
+  registry: docker.io
+  repository: mysql
+  pullPolicy: IfNotPresent
+  tag: "8.0.40"  # Latest stable MySQL 8.0 version
+
+# Image pull secrets for private registries
+imagePullSecrets: []
+# - name: myregistrykey
+
+# Override the chart name
+nameOverride: ""
+fullnameOverride: ""
+
+# Service Account configuration
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: false
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# Command and args override
+command: []
+# - "docker-entrypoint.sh"
+args: []
+# - "mysqld"
+
+# Additional labels for Deployment/StatefulSet
+labels: {}
+  # environment: production
+  # team: database
+
+# Extra environment variables
+extraEnvs: []
+# - name: MYSQL_INITDB_SKIP_TZINFO
+#   value: "1"
+# - name: TZ
+#   value: "America/Sao_Paulo"
+# - name: MYSQL_LOG_CONSOLE
+#   value: "true"
+
+# Load environment variables from ConfigMap or Secret
+envFrom: []
+# - configMapRef:
+#     name: mysql-config
+# - secretRef:
+#     name: mysql-secret
+
+# Pod annotations
+podAnnotations: {}
+  # prometheus.io/scrape: "true"
+  # prometheus.io/port: "9104"
+
+# Pod labels
+podLabels: {}
+  # version: "v1.0.0"
+
+# Pod Security Context
+podSecurityContext: 
+  fsGroup: 999
+  runAsUser: 999
+  runAsGroup: 999
+
+# Container Security Context
+securityContext:
+  privileged: false
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  runAsNonRoot: true
+  runAsUser: 999
+  capabilities:
+    drop:
+    - ALL
+
+# Container ports
+containerPorts:
+  - name: mysql
+    containerPort: 3306
+    protocol: TCP
+  - name: mysqlx
+    containerPort: 33060
+    protocol: TCP
+
+# Liveness and Readiness probes
+probe:
+  livenessProbe:
+    exec:
+      command:
+        - /bin/bash
+        - -c
+        - mysqladmin ping -h 127.0.0.1 -u root -p$MYSQL_ROOT_PASSWORD
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 6
+  readinessProbe:
+    exec:
+      command:
+        - /bin/bash
+        - -c
+        - mysql -h 127.0.0.1 -u root -p$MYSQL_ROOT_PASSWORD -e "SELECT 1"
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    successThreshold: 1
+    failureThreshold: 6
+
+# Service configuration
+service:
+  type: ClusterIP
+  annotations: {}
+    # service.beta.kubernetes.io/aws-load-balancer-type: nlb
+  labels: {}
+    # environment: production
+  servicePorts:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+      # nodePort: 30306  # Only for NodePort type
+    - name: mysqlx
+      port: 33060
+      targetPort: 33060
+      # nodePort: 33060  # Only for NodePort type
+
+# ConfigMap mounts - mount ConfigMap as files
+configMounts: []
+# - name: mysql-config
+#   configName: mysql-config
+#   path: /etc/mysql/conf.d/custom.cnf
+#   subPath: custom.cnf
+
+# Secret mounts - mount Secret as files
+secretMounts: []
+# - name: mysql-certs
+#   secretName: mysql-tls-secret
+#   path: /etc/mysql/certs
+#   subPath: tls.crt
+
+# Custom secret name (if empty, will be generated as "<release-name>-secret")
+secretName: ""
+
+# Main secrets - automatically base64 encoded
+Secrets:
+  MYSQL_ROOT_PASSWORD: "SecureRootPassword123!"
+  MYSQL_USER: "appuser"
+  MYSQL_PASSWORD: "SecurePassword123!"
+  MYSQL_DATABASE: "appdb"
+
+# Main ConfigMap data
+ConfigMap: {}
+# my.cnf: |
+#   [mysqld]
+#   max_connections = 200
+#   innodb_buffer_pool_size = 1G
+#   innodb_log_file_size = 256M
+#   character-set-server = utf8mb4
+#   collation-server = utf8mb4_unicode_ci
+#   slow_query_log = 1
+#   slow_query_log_file = /var/log/mysql/slow.log
+#   long_query_time = 2
+
+# Extra volumes and volume mounts
+extraVolumeMounts: []
+# - name: custom-config
+#   mountPath: /etc/mysql/custom.cnf
+#   subPath: custom.cnf
+
+extraVolumes: []
+# - name: custom-config
+#   configMap:
+#     name: mysql-custom-config
+
+# Resource limits and requests
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+# Horizontal Pod Autoscaler
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Node selection
+nodeSelector: {}
+  # kubernetes.io/arch: amd64
+  # node-type: database
+
+# Tolerations
+tolerations: []
+# - key: "database"
+#   operator: "Equal"
+#   value: "true"
+#   effect: "NoSchedule"
+
+# Affinity rules
+affinity: {}
+# podAntiAffinity:
+#   preferredDuringSchedulingIgnoredDuringExecution:
+#   - weight: 100
+#     podAffinityTerm:
+#       labelSelector:
+#         matchExpressions:
+#         - key: app.kubernetes.io/name
+#           operator: In
+#           values:
+#           - mysql
+#       topologyKey: kubernetes.io/hostname
+
+# CronJobs configuration
+CronJobs: []
+# - name: mysql-backup
+#   schedule: "0 2 * * *"
+#   image:
+#     repository: mysql
+#     tag: "8.0.40"
+#     imagePullPolicy: IfNotPresent
+#   command: ["sh"]
+#   args:
+#     - -c
+#     - |
+#       mysqldump -h mysql-service -u root -p$MYSQL_ROOT_PASSWORD --all-databases --single-transaction > /backup/backup-$(date +%Y%m%d-%H%M%S).sql
+#       gzip /backup/backup-$(date +%Y%m%d-%H%M%S).sql
+#   env:
+#     - name: MYSQL_ROOT_PASSWORD
+#       valueFrom:
+#         secretKeyRef:
+#           name: mysql-secret
+#           key: MYSQL_ROOT_PASSWORD
+#   volumeMounts:
+#     - name: backup-storage
+#       mountPath: /backup
+#   volumes:
+#     - name: backup-storage
+#       persistentVolumeClaim:
+#         claimName: mysql-backup-pvc
+#   restartPolicy: OnFailure
+#   concurrencyPolicy: Forbid
+#   successfulJobsHistoryLimit: 3
+#   failedJobsHistoryLimit: 1
+
+# Extra containers (sidecars)
+extraContainers: []
+# - name: mysql-exporter
+#   image: prom/mysqld-exporter:latest
+#   env:
+#     - name: DATA_SOURCE_NAME
+#       value: "root:$(MYSQL_ROOT_PASSWORD)@(localhost:3306)/"
+#   ports:
+#     - name: metrics
+#       containerPort: 9104
+
+# Extra init containers
+extraInitContainers: []
+# - name: mysql-init
+#   image: mysql:8.0.40
+#   command: ["sh", "-c"]
+#   args:
+#     - |
+#       echo "Initializing database..."
+#       # Custom initialization logic here
+
+# Extra secrets configuration
+extraSecrets:
+  enabled: false
+  name: ""  # Will be generated as "<release-name>-extra-secret" if empty
+  data: {}
+  # username: dXNlcm5hbWU=  # base64 encoded values
+  # password: cGFzc3dvcmQ=
+
+# Extra ConfigMap configuration  
+extraConfigMap: 
+  enabled: false
+  name: ""  # Will be generated as "<release-name>-extra-configmap" if empty
+  data: {}
+  # config.yaml: |
+  #   key: value
+  # init.sql: |
+  #   CREATE DATABASE IF NOT EXISTS test;
+  #   GRANT ALL PRIVILEGES ON test.* TO 'appuser'@'%';
+
+# Ingress configuration
+ingress:
+  enabled: false
+  ingressClassName: ""  # nginx, traefik, etc.
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # nginx.ingress.kubernetes.io/tcp-services-configmap: default/tcp-services
+  labels: {}
+  hosts: []
+  # - host: mysql.example.com
+  #   paths:
+  #   - path: /
+  #     pathType: Prefix
+  #     number: 3306
+  tls: []
+  # - secretName: mysql-tls-secret
+  #   hosts:
+  #     - mysql.example.com
