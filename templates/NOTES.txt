@@ -1,0 +1,49 @@
+1. MySQL has been deployed successfully!
+
+2. Get the MySQL credentials:
+   
+   ROOT PASSWORD:
+   export MYSQL_ROOT_PASSWORD=$(kubectl get secret {{ .Values.secretName | default (printf "%s-secret" .Release.Name) }} -o jsonpath="{.data.MYSQL_ROOT_PASSWORD}" | base64 -d)
+   echo $MYSQL_ROOT_PASSWORD
+   
+   USER PASSWORD:
+   export MYSQL_PASSWORD=$(kubectl get secret {{ .Values.secretName | default (printf "%s-secret" .Release.Name) }} -o jsonpath="{.data.MYSQL_PASSWORD}" | base64 -d)
+   echo $MYSQL_PASSWORD
+
+3. Connect to MySQL:
+
+{{- if contains "NodePort" .Values.service.type }}
+   Get the MySQL port:
+   export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ .Release.Name }}-service)
+   export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+   
+   Connect:
+   mysql -h $NODE_IP -P $NODE_PORT -u root -p$MYSQL_ROOT_PASSWORD
+
+{{- else if contains "LoadBalancer" .Values.service.type }}
+   NOTE: It may take a few minutes for the LoadBalancer IP to be available.
+   You can watch the status by running:
+   kubectl get --namespace {{ .Release.Namespace }} svc -w {{ .Release.Name }}-service
+   
+   Get the MySQL IP:
+   export SERVICE_IP=$(kubectl get svc --namespace {{ .Release.Namespace }} {{ .Release.Name }}-service --template "{{"{{ range (index .status.loadBalancer.ingress 0) }}{{.}}{{ end }}"}}")
+   
+   Connect:
+   mysql -h $SERVICE_IP -P 3306 -u root -p$MYSQL_ROOT_PASSWORD
+
+{{- else if contains "ClusterIP" .Values.service.type }}
+   Port forward to access MySQL:
+   kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-service 3306:3306
+   
+   In another terminal, connect:
+   mysql -h 127.0.0.1 -P 3306 -u root -p$MYSQL_ROOT_PASSWORD
+
+{{- end }}
+
+4. Connect from within the cluster:
+   mysql -h {{ .Release.Name }}-service.{{ .Release.Namespace }}.svc.cluster.local -u root -p$MYSQL_ROOT_PASSWORD
+
+5. Create a MySQL client pod:
+   kubectl run -it --rm --image=mysql:8.0.40 --restart=Never mysql-client -- mysql -h {{ .Release.Name }}-service -u root -p
+
+6. For backup and restore instructions, please refer to the README.md file.

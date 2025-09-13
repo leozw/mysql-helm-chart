@@ -1,0 +1,169 @@
+{{- if .Values.statefulset }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    {{- include "tpl.labels" . | nindent 4 }}
+    {{- with .Values.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}  
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  serviceName: {{ .Release.Name }}
+  {{- with .Values.UpdateStrategy }}
+  updateStrategy:
+    {{- toYaml . | trim | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "tpl.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- range $key, $value := .Values.podAnnotations }}
+        {{ $key }}: {{ $value | quote }}
+        {{- end }}
+        {{- if or .Values.ConfigMap .Values.extraConfigMap.enabled .Values.Secrets .Values.extraSecrets.enabled }}
+        configChecksum: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        configChecksum: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        configChecksum: {{ include (print $.Template.BasePath "/configmap_extra.yaml") . | sha256sum }}
+        configChecksum: {{ include (print $.Template.BasePath "/secret_extra.yaml") . | sha256sum }}
+        "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+        {{- end }}
+      labels:
+        {{- include "tpl.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}  
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "tpl.serviceAccountName" . }}
+      {{- end }}
+      initContainers:
+      {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }} 
+      containers:
+      {{- with .Values.extraContainers }}
+         {{- toYaml . | nindent 8 }}
+      {{- end }}
+        - name: {{ .Release.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }} 
+          image: "{{ .Values.image.registry }}/{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: 
+            {{- range .Values.command }}
+              - {{ . | quote }}
+            {{- end }}
+          args:          
+            {{- range .Values.args }}
+              - {{ . | quote }}
+            {{- end }}
+          ports:
+            {{- if .Values.containerPorts }}
+            {{ toYaml .Values.containerPorts | nindent 12 }}
+            {{- end }}
+            {{- if .Values.probe }}
+            {{ toYaml .Values.probe | nindent 10 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName | default (printf "%s-secret" .Release.Name) | quote }}
+                  key: MYSQL_ROOT_PASSWORD
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName | default (printf "%s-secret" .Release.Name) | quote }}
+                  key: MYSQL_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName | default (printf "%s-secret" .Release.Name) | quote }}
+                  key: MYSQL_PASSWORD
+            - name: MYSQL_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName | default (printf "%s-secret" .Release.Name) | quote }}
+                  key: MYSQL_DATABASE
+            {{- if .Values.extraEnvs }}
+            {{ toYaml .Values.extraEnvs | nindent 12 }}
+            {{- end }}
+            {{- if .Values.envFrom }}
+          envFrom:
+            {{ toYaml .Values.envFrom | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- range .Values.secretMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .path }}
+              {{- if .subPath }}
+              subPath: {{ .subPath }}
+              {{- end }}
+            {{- end }}
+            {{- range .Values.configMounts }}
+            - name: {{ .name }}
+              mountPath: {{ .path }}
+            {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- range .Values.secretMounts }}
+        - name: {{ .name }}
+          secret:
+            secretName: {{ .secretName }}
+        {{- end }}
+        {{- range .Values.configMounts }}
+        - name: {{ .name }}
+          configMap:
+            name: {{ .configName }}
+        {{- end }}
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+  {{- range .Values.persistence.volumeClaimTemplates }}
+  - metadata:
+      name: {{ .name }}
+    spec:
+      accessModes: {{ .accessModes | toYaml | nindent 6 }}
+      storageClassName: {{ .storageClassName | default "" }}
+      resources:
+        requests:
+          storage: {{ .resources.requests.storage }}
+  {{- end }}        
+  {{- end }}  
+{{- end }}
