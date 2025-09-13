@@ -4,7 +4,7 @@ entries:
   - apiVersion: v2
     appVersion: 8.0.40
     created: "2025-09-13T11:50:30.840133-03:00"
-    description: A Helm chart for deploying MySQL on Kubernetes
+    description: "A Helm chart for deploying MySQL on Kubernetes."
     digest: d415352b8437e1a6e65b45f0ef57c581de85608df24b9486472738fd752204fd
     name: mysql
     type: application
