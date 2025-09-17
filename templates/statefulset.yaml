@@ -53,6 +53,23 @@ spec:
       serviceAccountName: {{ include "tpl.serviceAccountName" . }}
       {{- end }}
       initContainers:
+        - name: mysql-init-permissions
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "Setting up MySQL data directory permissions..."
+              rm -rf /var/lib/mysql/lost+found
+              chown -R 999:999 /var/lib/mysql
+              chmod 750 /var/lib/mysql
+              echo "Permissions set successfully"
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
       {{- with .Values.extraInitContainers }}
         {{- toYaml . | nindent 8 }}
       {{- end }} 

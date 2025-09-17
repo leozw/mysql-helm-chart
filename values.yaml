@@ -19,6 +19,10 @@ mysql:
 # Persistence configuration - only applies to StatefulSet
 persistence: 
   enabled: true
+  # For Deployment mode (non-StatefulSet)
+  size: 10Gi
+  storageClassName: ""  # Leave empty for default storage class
+  # For StatefulSet mode
   volumeClaimTemplates:
     - name: mysql-storage
       accessModes: [ "ReadWriteOnce" ]
@@ -102,6 +106,7 @@ podLabels: {}
 # Pod Security Context
 podSecurityContext: 
   fsGroup: 999
+  fsGroupChangePolicy: "OnRootMismatch"
   runAsUser: 999
   runAsGroup: 999
 
@@ -112,9 +117,16 @@ securityContext:
   readOnlyRootFilesystem: false
   runAsNonRoot: true
   runAsUser: 999
+  runAsGroup: 999
   capabilities:
     drop:
     - ALL
+    add:
+    - CHOWN
+    - DAC_OVERRIDE
+    - FOWNER
+    - SETGID
+    - SETUID
 
 # Container ports
 containerPorts:
@@ -132,8 +144,12 @@ probe:
       command:
         - /bin/bash
         - -c
-        - mysqladmin ping -h 127.0.0.1 -u root -p$MYSQL_ROOT_PASSWORD
-    initialDelaySeconds: 30
+        - |
+          if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
+            exit 1
+          fi
+          mysqladmin ping -h 127.0.0.1 -u root -p"$MYSQL_ROOT_PASSWORD" 2>/dev/null || exit 1
+    initialDelaySeconds: 120
     periodSeconds: 10
     timeoutSeconds: 5
     successThreshold: 1
@@ -143,12 +159,16 @@ probe:
       command:
         - /bin/bash
         - -c
-        - mysql -h 127.0.0.1 -u root -p$MYSQL_ROOT_PASSWORD -e "SELECT 1"
-    initialDelaySeconds: 10
+        - |
+          if [ -z "$MYSQL_ROOT_PASSWORD" ]; then
+            exit 1
+          fi
+          mysql -h 127.0.0.1 -u root -p"$MYSQL_ROOT_PASSWORD" -e "SELECT 1" 2>/dev/null || exit 1
+    initialDelaySeconds: 30
     periodSeconds: 10
     timeoutSeconds: 5
     successThreshold: 1
-    failureThreshold: 6
+    failureThreshold: 3
 
 # Service configuration
 service:
