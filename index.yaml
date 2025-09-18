@@ -3,12 +3,12 @@ entries:
   mysql:
   - apiVersion: v2
     appVersion: 8.0.40
-    created: "2025-09-17T10:00:14.611467-03:00"
+    created: "2025-09-18T12:00:45.05631-03:00"
     description: A Helm chart for deploying MySQL on Kubernetes
-    digest: 01c5739e101f5d2e87c595563f5b2dc58075ad1b3687ba9d09986a2890db2cdd
+    digest: d2de696eaad37a82b0d01510a14bb31af823c00051335a2bac3ee329bcdf9153
     name: mysql
     type: application
     urls:
-    - https://leozw.github.io/mysql-helm-chart/mysql-0.1.1.tgz
-    version: 0.1.1
-generated: "2025-09-17T10:00:14.610931-03:00"
+    - https://leozw.github.io/mysql-helm-chart/mysql-0.1.2.tgz
+    version: 0.1.2
+generated: "2025-09-18T12:00:45.05515-03:00"
