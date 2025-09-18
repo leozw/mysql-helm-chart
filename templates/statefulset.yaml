@@ -59,11 +59,57 @@ spec:
             - sh
             - -c
             - |
-              echo "Setting up MySQL data directory permissions..."
+              echo "Setting up MySQL data directory..."
+              
+              # Check if MySQL data directory is empty or has issues
+              if [ -d "/var/lib/mysql/mysql" ]; then
+                echo "MySQL data directory exists, checking for issues..."
+                
+                # Check for ib_logfile issues
+                if [ -f "/var/lib/mysql/ib_logfile0" ] || [ -f "/var/lib/mysql/ib_logfile1" ]; then
+                  echo "Found old ib_logfile files, removing..."
+                  rm -f /var/lib/mysql/ib_logfile*
+                fi
+                
+                # Check for corrupted auto.cnf
+                if [ -f "/var/lib/mysql/auto.cnf" ]; then
+                  echo "Checking auto.cnf permissions..."
+                  chmod 640 /var/lib/mysql/auto.cnf
+                  chown 999:999 /var/lib/mysql/auto.cnf
+                fi
+                
+                # Remove redo log files if they exist
+                if [ -f "/var/lib/mysql/#innodb_redo" ]; then
+                  echo "Removing redo log directory..."
+                  rm -rf /var/lib/mysql/#innodb_redo
+                fi
+                
+                # Remove temporary files
+                rm -f /var/lib/mysql/*.err
+                rm -f /var/lib/mysql/*.pid
+                rm -f /var/lib/mysql/*.sock
+                rm -f /var/lib/mysql/*.sock.lock
+                
+              else
+                echo "MySQL data directory is empty, preparing for initialization..."
+                mkdir -p /var/lib/mysql
+              fi
+              
+              # Always remove lost+found if it exists
               rm -rf /var/lib/mysql/lost+found
+              
+              # Set proper permissions
+              echo "Setting permissions..."
               chown -R 999:999 /var/lib/mysql
               chmod 750 /var/lib/mysql
-              echo "Permissions set successfully"
+              
+              # Fix permissions on all files if they exist
+              if [ -d "/var/lib/mysql/mysql" ]; then
+                find /var/lib/mysql -type f -exec chmod 640 {} \;
+                find /var/lib/mysql -type d -exec chmod 750 {} \;
+              fi
+              
+              echo "Initialization complete!"
           volumeMounts:
             - name: mysql-storage
               mountPath: /var/lib/mysql
@@ -94,9 +140,9 @@ spec:
             {{- if .Values.containerPorts }}
             {{ toYaml .Values.containerPorts | nindent 12 }}
             {{- end }}
-            {{- if .Values.probe }}
-            {{ toYaml .Values.probe | nindent 10 }}
-            {{- end }}
+          {{- if .Values.probe }}
+          {{ toYaml .Values.probe | nindent 10 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           env:
@@ -123,10 +169,10 @@ spec:
             {{- if .Values.extraEnvs }}
             {{ toYaml .Values.extraEnvs | nindent 12 }}
             {{- end }}
-            {{- if .Values.envFrom }}
+          {{- if .Values.envFrom }}
           envFrom:
             {{ toYaml .Values.envFrom | nindent 12 }}
-            {{- end }}
+          {{- end }}
           volumeMounts:
             - name: mysql-storage
               mountPath: /var/lib/mysql
